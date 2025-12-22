@@ -4,6 +4,69 @@ import { env } from './env';
 import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
 import type { ChatTurn } from './memory';
 
+function shouldUseSearchForPrompt(userText: string): boolean {
+  // Heuristique simple: sujets qui changent souvent / nécessitent du contenu à jour.
+  const text = userText.toLowerCase();
+  const keywords = [
+    // Général "guides/meta".
+    'build',
+    'stuff',
+    'gear',
+    'item',
+    'patch',
+    'patch note',
+    'hotfix',
+    'update',
+    'season',
+    'saison',
+    'meta',
+    'tier list',
+    // Quêtes / progression.
+    'quest',
+    'quête',
+    'walkthrough',
+    'guide',
+    'raid',
+    'donjon',
+    'dungeon',
+    'mmo',
+    'mmorpg',
+    'pvp',
+    'pve',
+    // Drops / loot.
+    'drop rate',
+    'taux de drop',
+    'loot',
+    'boss',
+    'strategy',
+    'stratégie',
+    // Jeux fréquents (exemples).
+    'fortnite',
+    'warzone',
+    'valorant',
+    'league of legends',
+    'dofus',
+    'wakfu',
+    'diablo',
+    'path of exile',
+    'poe',
+    'wow',
+    'world of warcraft',
+    'genshin',
+    'honkai',
+    'elden ring',
+    'minecraft',
+    'destiny 2',
+    'cs2',
+    'counter strike',
+  ];
+
+  if (keywords.some((k) => text.includes(k))) return true;
+
+  // Garde-fou: si ça parle explicitement de "build"/"quête"/"patch" au pluriel/variantes.
+  return /\b(builds?|qu[eê]tes?|quests?|patch(?:es)?|hotfix(?:es)?|mmorpg|mmo)\b/i.test(userText);
+}
+
 export class GeminiClient {
   private readonly ai: GoogleGenAI;
   private readonly modelName: string;
@@ -24,19 +87,23 @@ export class GeminiClient {
       opts.userText,
     );
 
+    const isGameQuery = shouldUseSearchForPrompt(opts.userText);
+    const enableSearchThisRequest = env.GEMINI_ENABLE_SEARCH && (isGameQuery || wantsSources);
+
     const response = await this.ai.models.generateContent({
       model: this.modelName,
       contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_DISCORD,
-        tools: env.GEMINI_ENABLE_SEARCH ? [{ googleSearch: {} }] : undefined,
+        tools: enableSearchThisRequest ? [{ googleSearch: {} }] : undefined,
       },
     });
 
     const answer = (response.text ?? '').trim();
     if (!answer) return '';
 
-    if (!env.GEMINI_ENABLE_SEARCH || !wantsSources) return answer;
+    // Affiche les sources seulement si demandé, ou si on est sur une question "jeu" (où l'info évolue).
+    if (!enableSearchThisRequest || (!wantsSources && !isGameQuery)) return answer;
 
     const grounding = (response.candidates?.[0] as any)?.groundingMetadata;
     const chunks = (grounding?.groundingChunks ?? []) as any[];

@@ -32,6 +32,8 @@ Puis complète `.env`:
 Si tu veux que Gemini puisse chercher sur le web (quand utile):
 - Mets `GEMINI_ENABLE_SEARCH=true`
 
+Quand c'est activé, le bot déclenche automatiquement la recherche pour des sujets qui bougent vite (ex: jeux vidéo: builds/meta, quêtes, patch notes, MMO, saisons). Pour les autres questions, il peut répondre sans recherche.
+
 Note: même activé, le modèle ne fait pas forcément une recherche pour des questions “générales”. Pour tester, pose une question très récente (actualité, résultats, prix du jour) ou demande explicitement “donne-moi les sources/liens”.
 
 ## Lancer en dev
