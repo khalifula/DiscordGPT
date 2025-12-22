@@ -25,6 +25,20 @@ const envSchema = z.object({
     },
     z.number().int().min(1).max(100),
   ),
+  MAX_CONTEXT_MESSAGES: z.preprocess(
+    (v) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string' && v.trim().length > 0) return Number(v);
+      return undefined;
+    },
+    z.number().int().min(1).max(200).optional(),
+  ),
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+export const env = {
+  ...parsed,
+  // Backward-compatible: if MAX_CONTEXT_MESSAGES is not set, fall back to MAX_TURNS*2 (old behavior).
+  MAX_CONTEXT_MESSAGES: parsed.MAX_CONTEXT_MESSAGES ?? parsed.MAX_TURNS * 2,
+};

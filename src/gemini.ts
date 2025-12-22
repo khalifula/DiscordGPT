@@ -1,7 +1,7 @@
 import { GoogleGenAI, type Content } from '@google/genai';
 
 import { env } from './env';
-import { SYSTEM_INSTRUCTION_FR_CONGO } from './systemPrompt';
+import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
 import type { ChatTurn } from './memory';
 
 export class GeminiClient {
@@ -28,7 +28,7 @@ export class GeminiClient {
       model: this.modelName,
       contents,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION_FR_CONGO,
+        systemInstruction: SYSTEM_INSTRUCTION_DISCORD,
         tools: env.GEMINI_ENABLE_SEARCH ? [{ googleSearch: {} }] : undefined,
       },
     });

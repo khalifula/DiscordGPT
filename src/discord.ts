@@ -8,7 +8,7 @@ import {
 
 import { env } from './env';
 import { GeminiClient } from './gemini';
-import { ThreadMemory } from './memory';
+import { ChannelMemory } from './memory';
 
 function stripBotMention(message: Message<true>, text: string): string {
   const me = message.client.user;
@@ -37,7 +37,7 @@ export function createDiscordClient(): Client {
 export async function startBot(): Promise<void> {
   const client = createDiscordClient();
   const gemini = new GeminiClient();
-  const memory = new ThreadMemory({ maxTurns: env.MAX_TURNS });
+  const memory = new ChannelMemory({ maxMessages: env.MAX_CONTEXT_MESSAGES });
 
   client.once(Events.ClientReady, () => {
     // eslint-disable-next-line no-console
@@ -49,68 +49,32 @@ export async function startBot(): Promise<void> {
     if (message.author.bot) return;
     if (!client.user) return;
 
-    const channel = message.channel;
-    const isThread = channel.isThread();
-
+    const channelId = message.channelId;
     const mentioned = message.mentions.has(client.user);
-    const isActiveThread = isThread ? memory.isActive(channel.id) : false;
 
-    // Salon normal: répond uniquement si mentionné, sans garder de mémoire.
-    if (!isThread) {
-      if (!mentioned) return;
+    const raw = message.content ?? '';
+    const cleaned = (mentioned ? stripBotMention(message, raw) : raw).trim();
+    if (!cleaned) return;
 
-      const userText = stripBotMention(message, message.content ?? '').trim();
-      if (!userText) return;
+    // Always keep a rolling context of recent messages in the channel.
+    // (Bot still replies only when mentioned.)
+    const history = memory.getHistory(channelId);
+    memory.push(channelId, { role: 'user', text: cleaned });
 
-      await safeTyping(message as Message<true>);
-
-      let answer: string;
-      try {
-        answer = await gemini.reply({ history: [], userText });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(err);
-        answer = 'Eh, y a eu un souci côté IA. Réessaie encore un peu.';
-      }
-
-      const wantsToContinue = /\b(thread|fil|contexte|context|continuer|suite|follow\s?up)\b/i.test(userText);
-      const hint = wantsToContinue
-        ? "\n\nSi tu veux continuer avec contexte: crée un thread ici puis mentionne-moi une fois dedans, après on avance tranquille."
-        : '';
-
-      try {
-        await message.reply(`${answer}${hint}`);
-      } catch {
-        // ignore
-      }
-      return;
-    }
-
-    // Thread: si mentionné on active la mémoire; si déjà actif, on répond même sans mention.
-    if (!mentioned && !isActiveThread) return;
-
-    const threadId = channel.id;
-    if (mentioned) memory.activate(threadId);
-
-    const userTextRaw = message.content ?? '';
-    const userText = (mentioned ? stripBotMention(message, userTextRaw) : userTextRaw).trim();
-    if (!userText) return;
-
-    const history = memory.getHistory(threadId);
-    memory.push(threadId, { role: 'user', text: userText });
+    if (!mentioned) return;
 
     await safeTyping(message as Message<true>);
 
     let answer: string;
     try {
-      answer = await gemini.reply({ history, userText });
+      answer = await gemini.reply({ history, userText: cleaned });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);
       answer = 'Eh, y a eu un souci côté IA. Réessaie encore un peu.';
     }
 
-    memory.push(threadId, { role: 'model', text: answer });
+    memory.push(channelId, { role: 'model', text: answer });
 
     try {
       await message.reply(answer);

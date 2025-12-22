@@ -5,36 +5,25 @@ export type ChatTurn = {
   text: string;
 };
 
-export class ThreadMemory {
-  private readonly maxTurns: number;
-  private readonly byThreadId = new Map<string, ChatTurn[]>();
-  private readonly activeThreads = new Set<string>();
+export class ChannelMemory {
+  private readonly maxMessages: number;
+  private readonly byChannelId = new Map<string, ChatTurn[]>();
 
-  constructor(opts: { maxTurns: number }) {
-    this.maxTurns = opts.maxTurns;
+  constructor(opts: { maxMessages: number }) {
+    this.maxMessages = opts.maxMessages;
   }
 
-  isActive(threadId: string): boolean {
-    return this.activeThreads.has(threadId);
+  getHistory(channelId: string): ChatTurn[] {
+    return this.byChannelId.get(channelId) ?? [];
   }
 
-  activate(threadId: string): void {
-    this.activeThreads.add(threadId);
-    if (!this.byThreadId.has(threadId)) this.byThreadId.set(threadId, []);
-  }
-
-  getHistory(threadId: string): ChatTurn[] {
-    return this.byThreadId.get(threadId) ?? [];
-  }
-
-  push(threadId: string, turn: ChatTurn): void {
-    const history = this.byThreadId.get(threadId) ?? [];
+  push(channelId: string, turn: ChatTurn): void {
+    const history = this.byChannelId.get(channelId) ?? [];
     history.push(turn);
 
-    // Keep at most maxTurns user+model pairs => 2*maxTurns turns
-    const limit = this.maxTurns * 2;
-    const trimmed = history.length > limit ? history.slice(history.length - limit) : history;
+    const trimmed =
+      history.length > this.maxMessages ? history.slice(history.length - this.maxMessages) : history;
 
-    this.byThreadId.set(threadId, trimmed);
+    this.byChannelId.set(channelId, trimmed);
   }
 }
