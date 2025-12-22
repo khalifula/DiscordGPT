@@ -27,6 +27,27 @@ async function safeTyping(message: Message<true>): Promise<void> {
   }
 }
 
+async function safeReply(message: Message<true>, content: string): Promise<void> {
+  const text = content.trim();
+  if (!text) return;
+
+  try {
+    await message.reply(text);
+    return;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to reply():', err);
+  }
+
+  // Fallback when reply() fails (permissions, deleted message, etc.).
+  try {
+    await message.channel.send({ content: `<@${message.author.id}> ${text}` });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to channel.send():', err);
+  }
+}
+
 export function createDiscordClient(): Client {
   return new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -54,6 +75,13 @@ export async function startBot(): Promise<void> {
 
     const raw = message.content ?? '';
     const cleaned = (mentioned ? stripBotMention(message, raw) : raw).trim();
+
+    // If the user only mentions the bot with no text, prompt them for a question.
+    if (mentioned && !cleaned) {
+      await safeReply(message as Message<true>, "Oui — dis-moi ce dont tu as besoin (jeu, quête, build, etc.).");
+      return;
+    }
+
     if (!cleaned) return;
 
     // Always keep a rolling context of recent messages in the channel.
@@ -71,16 +99,16 @@ export async function startBot(): Promise<void> {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);
-      answer = 'Eh, y a eu un souci côté IA. Réessaie encore un peu.';
+      answer = "Désolé — je n'ai pas pu générer une réponse. Réessaie dans quelques secondes.";
+    }
+
+    if (!answer.trim()) {
+      answer = "Je n'ai pas réussi à produire une réponse. Peux-tu reformuler ta question ?";
     }
 
     memory.push(channelId, { role: 'model', text: answer });
 
-    try {
-      await message.reply(answer);
-    } catch {
-      // ignore
-    }
+    await safeReply(message as Message<true>, answer);
   });
 
   await client.login(env.DISCORD_TOKEN);

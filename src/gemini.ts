@@ -100,7 +100,9 @@ export class GeminiClient {
     });
 
     const answer = (response.text ?? '').trim();
-    if (!answer) return '';
+    if (!answer) {
+      throw new Error('Gemini returned an empty response');
+    }
 
     // Affiche les sources seulement si demandé, ou si on est sur une question "jeu" (où l'info évolue).
     if (!enableSearchThisRequest || (!wantsSources && !isGameQuery)) return answer;
