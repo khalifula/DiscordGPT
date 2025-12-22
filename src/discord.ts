@@ -1,5 +1,6 @@
 import {
   Client,
+  Events,
   GatewayIntentBits,
   Message,
   Partials,
@@ -38,7 +39,7 @@ export async function startBot(): Promise<void> {
   const gemini = new GeminiClient();
   const memory = new ThreadMemory({ maxTurns: env.MAX_TURNS });
 
-  client.on('ready', () => {
+  client.once(Events.ClientReady, () => {
     // eslint-disable-next-line no-console
     console.log(`Logged in as ${client.user?.tag}`);
   });
@@ -72,8 +73,10 @@ export async function startBot(): Promise<void> {
         answer = 'Eh, y a eu un souci côté IA. Réessaie encore un peu.';
       }
 
-      const hint =
-        "\n\nSi tu veux continuer avec contexte, crée un thread ici puis mentionne-moi une fois dedans, après on avance tranquille.";
+      const wantsToContinue = /\b(thread|fil|contexte|context|continuer|suite|follow\s?up)\b/i.test(userText);
+      const hint = wantsToContinue
+        ? "\n\nSi tu veux continuer avec contexte: crée un thread ici puis mentionne-moi une fois dedans, après on avance tranquille."
+        : '';
 
       try {
         await message.reply(`${answer}${hint}`);
