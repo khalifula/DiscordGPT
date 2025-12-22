@@ -27,24 +27,64 @@ async function safeTyping(message: Message<true>): Promise<void> {
   }
 }
 
+function splitForDiscord(text: string, limit: number): string[] {
+  const cleaned = text.replace(/\r\n/g, '\n').trim();
+  if (!cleaned) return [];
+
+  const parts: string[] = [];
+  let remaining = cleaned;
+
+  while (remaining.length > limit) {
+    const slice = remaining.slice(0, limit);
+    const lastNewline = slice.lastIndexOf('\n');
+    const lastSpace = slice.lastIndexOf(' ');
+    let cut = Math.max(lastNewline, lastSpace);
+
+    // If we can't find a reasonable break, hard cut.
+    if (cut < Math.floor(limit * 0.5)) cut = limit;
+
+    const chunk = remaining.slice(0, cut).trimEnd();
+    if (chunk) parts.push(chunk);
+    remaining = remaining.slice(cut).trimStart();
+  }
+
+  if (remaining.trim()) parts.push(remaining.trim());
+  return parts;
+}
+
 async function safeReply(message: Message<true>, content: string): Promise<void> {
   const text = content.trim();
   if (!text) return;
 
+  const chunks = splitForDiscord(text, 2000);
+  if (chunks.length === 0) return;
+
   try {
-    await message.reply(text);
+    await message.reply(chunks[0]);
+    for (const chunk of chunks.slice(1)) {
+      await message.channel.send({ content: chunk });
+    }
     return;
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('Failed to reply():', err);
+    console.error('Failed to reply():', { err, totalLength: text.length, chunks: chunks.length });
   }
 
   // Fallback when reply() fails (permissions, deleted message, etc.).
+  const mentionPrefix = `<@${message.author.id}> `;
+  const firstLimit = Math.max(1, 2000 - mentionPrefix.length);
+  const fallbackChunks = splitForDiscord(text, firstLimit);
+
   try {
-    await message.channel.send({ content: `<@${message.author.id}> ${text}` });
+    if (fallbackChunks.length > 0) {
+      await message.channel.send({ content: `${mentionPrefix}${fallbackChunks[0]}` });
+      for (const chunk of fallbackChunks.slice(1)) {
+        await message.channel.send({ content: chunk });
+      }
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('Failed to channel.send():', err);
+    console.error('Failed to channel.send():', { err, totalLength: text.length, chunks: fallbackChunks.length });
   }
 }
 
