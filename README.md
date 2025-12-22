@@ -26,6 +26,13 @@ Puis complète `.env`:
 - `DISCORD_TOKEN`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL` (par défaut `gemini-1.5-flash`)
+- `GEMINI_ENABLE_SEARCH` (optionnel, `false` par défaut)
+
+### Search grounding (Google Search)
+Si tu veux que Gemini puisse chercher sur le web (quand utile):
+- Mets `GEMINI_ENABLE_SEARCH=true`
+
+Note: même activé, le modèle ne fait pas forcément une recherche pour des questions “générales”. Pour tester, pose une question très récente (actualité, résultats, prix du jour) ou demande explicitement “donne-moi les sources/liens”.
 
 ## Lancer en dev
 ```bash
