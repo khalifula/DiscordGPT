@@ -8,7 +8,14 @@ import {
 
 import { env } from './env';
 import { GeminiClient } from './gemini';
+import { ChannelSettings } from './channelSettings';
 import { ChannelMemory } from './memory';
+import {
+  getResponseStyleLabel,
+  listResponseStyleOptions,
+  parseResponseStyle,
+  type ResponseStyle,
+} from './responseStyle';
 
 function stripBotMention(message: Message<true>, text: string): string {
   const me = message.client.user;
@@ -60,9 +67,9 @@ async function safeReply(message: Message<true>, content: string): Promise<void>
   if (chunks.length === 0) return;
 
   try {
-    await message.reply(chunks[0]);
+    await message.reply({ content: chunks[0], allowedMentions: { parse: [], repliedUser: false } });
     for (const chunk of chunks.slice(1)) {
-      await message.channel.send({ content: chunk });
+      await message.channel.send({ content: chunk, allowedMentions: { parse: [] } });
     }
     return;
   } catch (err) {
@@ -77,9 +84,12 @@ async function safeReply(message: Message<true>, content: string): Promise<void>
 
   try {
     if (fallbackChunks.length > 0) {
-      await message.channel.send({ content: `${mentionPrefix}${fallbackChunks[0]}` });
+      await message.channel.send({
+        content: `${mentionPrefix}${fallbackChunks[0]}`,
+        allowedMentions: { users: [message.author.id], parse: [] },
+      });
       for (const chunk of fallbackChunks.slice(1)) {
-        await message.channel.send({ content: chunk });
+        await message.channel.send({ content: chunk, allowedMentions: { parse: [] } });
       }
     }
   } catch (err) {
@@ -95,10 +105,68 @@ export function createDiscordClient(): Client {
   });
 }
 
+type BotCommand =
+  | { type: 'help' }
+  | { type: 'reset' }
+  | { type: 'stats' }
+  | { type: 'style'; style: ResponseStyle | null };
+
+function parseCommand(input: string): BotCommand | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.toLowerCase();
+  if (/^(help|aide|commandes?)$/.test(normalized)) return { type: 'help' };
+  if (/^(reset|clear|forget|oublie|oublier|efface)$/.test(normalized)) return { type: 'reset' };
+  if (/^(stats?|status|etat|état)$/.test(normalized)) return { type: 'stats' };
+
+  const styleMatch = /^(?:mode|style|ton|format)\s*[:\-]?\s*(.*)$/i.exec(trimmed);
+  if (styleMatch) {
+    const style = styleMatch[1] ? parseResponseStyle(styleMatch[1]) : null;
+    return { type: 'style', style };
+  }
+
+  return null;
+}
+
+function buildHelpMessage(): string {
+  return [
+    'Utilisation:',
+    '- Mentionne-moi avec ta question pour une réponse.',
+    '- Commandes: help/aide, reset/clear, stats, style <valeur>.',
+    `- Styles disponibles: ${listResponseStyleOptions()}.`,
+  ].join('\n');
+}
+
+function formatUserTurn(message: Message<true>, text: string): string {
+  const displayName = message.member?.displayName ?? message.author.username;
+  return `${displayName}: ${text}`;
+}
+
+function buildUserText(message: Message<true>, cleaned: string): string {
+  const lines: string[] = [];
+  if (cleaned.trim()) lines.push(cleaned.trim());
+
+  const attachments = [...message.attachments.values()];
+  if (attachments.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push('Pièces jointes:');
+    for (const attachment of attachments) {
+      const label = attachment.name ?? 'fichier';
+      lines.push(`- ${label}: ${attachment.url}`);
+    }
+  }
+
+  return lines.join('\n').trim();
+}
+
 export async function startBot(): Promise<void> {
   const client = createDiscordClient();
   const gemini = new GeminiClient();
   const memory = new ChannelMemory({ maxMessages: env.MAX_CONTEXT_MESSAGES });
+  const defaultStyle = parseResponseStyle(env.DEFAULT_RESPONSE_STYLE ?? '') ?? 'normal';
+  const settings = new ChannelSettings({ defaultStyle });
+  const lastRequestByUserId = new Map<string, number>();
 
   client.once(Events.ClientReady, () => {
     // eslint-disable-next-line no-console
@@ -115,27 +183,90 @@ export async function startBot(): Promise<void> {
 
     const raw = message.content ?? '';
     const cleaned = (mentioned ? stripBotMention(message, raw) : raw).trim();
+    const userText = buildUserText(message as Message<true>, cleaned);
 
-    // If the user only mentions the bot with no text, prompt them for a question.
-    if (mentioned && !cleaned) {
-      await safeReply(message as Message<true>, "Oui — dis-moi ce dont tu as besoin (jeu, quête, build, etc.).");
+    if (!userText) {
+      if (!mentioned) return;
+      await safeReply(message as Message<true>, buildHelpMessage());
       return;
     }
-
-    if (!cleaned) return;
 
     // Always keep a rolling context of recent messages in the channel.
     // (Bot still replies only when mentioned.)
     const history = memory.getHistory(channelId);
-    memory.push(channelId, { role: 'user', text: cleaned });
+    const userTurnText = formatUserTurn(message as Message<true>, userText);
 
-    if (!mentioned) return;
+    if (!mentioned) {
+      memory.push(channelId, { role: 'user', text: userTurnText });
+      return;
+    }
+
+    const command = parseCommand(cleaned);
+    if (command) {
+      if (command.type === 'help') {
+        await safeReply(message as Message<true>, buildHelpMessage());
+        return;
+      }
+
+      if (command.type === 'reset') {
+        memory.clear(channelId);
+        settings.clear(channelId);
+        await safeReply(message as Message<true>, 'Mémoire du salon réinitialisée.');
+        return;
+      }
+
+      if (command.type === 'stats') {
+        const stats = memory.getStats(channelId);
+        const style = settings.getStyle(channelId);
+        await safeReply(
+          message as Message<true>,
+          `Mémoire: ${stats.count}/${stats.max} messages (~${stats.chars} caractères). Style: ${getResponseStyleLabel(
+            style,
+          )}.`,
+        );
+        return;
+      }
+
+      if (command.type === 'style') {
+        if (!command.style) {
+          await safeReply(
+            message as Message<true>,
+            `Précise un style: ${listResponseStyleOptions()}. Exemple: "style concis".`,
+          );
+          return;
+        }
+        settings.setStyle(channelId, command.style);
+        await safeReply(
+          message as Message<true>,
+          `Style mis à jour: ${getResponseStyleLabel(command.style)}.`,
+        );
+        return;
+      }
+    }
+
+    const cooldownMs = Math.max(0, env.USER_COOLDOWN_SECONDS) * 1000;
+    if (cooldownMs > 0) {
+      const now = Date.now();
+      const last = lastRequestByUserId.get(message.author.id) ?? 0;
+      if (now - last < cooldownMs) {
+        const waitSec = Math.ceil((cooldownMs - (now - last)) / 1000);
+        await safeReply(
+          message as Message<true>,
+          `Attends ${waitSec}s avant de refaire une demande.`,
+        );
+        return;
+      }
+      lastRequestByUserId.set(message.author.id, now);
+    }
+
+    memory.push(channelId, { role: 'user', text: userTurnText });
 
     await safeTyping(message as Message<true>);
 
     let answer: string;
     try {
-      answer = await gemini.reply({ history, userText: cleaned });
+      const responseStyle = settings.getStyle(channelId);
+      answer = await gemini.reply({ history, userText: userTurnText, responseStyle });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(err);

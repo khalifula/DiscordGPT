@@ -17,6 +17,21 @@ const envSchema = z.object({
     },
     z.boolean(),
   ),
+  USER_COOLDOWN_SECONDS: z.preprocess(
+    (v) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string' && v.trim().length > 0) return Number(v);
+      return 4;
+    },
+    z.number().min(0).max(120),
+  ),
+  DEFAULT_RESPONSE_STYLE: z.preprocess(
+    (v) => {
+      if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+      return undefined;
+    },
+    z.string().optional(),
+  ),
   MAX_TURNS: z.preprocess(
     (v) => {
       if (typeof v === 'number') return v;

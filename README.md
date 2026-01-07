@@ -5,6 +5,9 @@ Bot Discord en TypeScript qui répond via Gemini directement dans ton serveur.
 ## Comportement
 - Le bot répond **uniquement quand on le mentionne**.
 - Il garde le contexte des **50 derniers messages du salon** (configurable) et s’en sert quand tu le mentionnes.
+- Commandes rapides: `help/aide`, `reset/clear`, `stats`, `style <valeur>`.
+- Style de réponse configurable par salon (`style concis`, `style détaillé`, `style points`).
+- Cooldown anti-spam configurable (par défaut 4s).
 
 ## Prérequis
 - Node.js 18+ (recommandé 20+)
@@ -26,6 +29,8 @@ Puis complète `.env`:
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL` (par défaut `gemini-1.5-flash`)
 - `GEMINI_ENABLE_SEARCH` (optionnel, `false` par défaut)
+- `USER_COOLDOWN_SECONDS` (optionnel, `4` par défaut)
+- `DEFAULT_RESPONSE_STYLE` (optionnel, `normal` par défaut)
 - `MAX_CONTEXT_MESSAGES` (optionnel, `50` par défaut)
 
 ### Search grounding (Google Search)
@@ -54,3 +59,11 @@ Le bot a besoin au minimum:
 
 ## Notes
 - La mémoire/contexte est gardée **en RAM** (pas de base de données). Si tu redémarres le process, le contexte repart à zéro.
+
+## Commandes (exemples)
+- `@Bot help` → affiche l’aide rapide.
+- `@Bot reset` → oublie la mémoire du salon.
+- `@Bot stats` → affiche les stats mémoire + style actuel.
+- `@Bot style concis` → réponses très courtes.
+- `@Bot style détaillé` → réponses détaillées.
+- `@Bot style points` → réponses en liste à puces.

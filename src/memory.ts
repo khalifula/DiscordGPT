@@ -17,6 +17,12 @@ export class ChannelMemory {
     return this.byChannelId.get(channelId) ?? [];
   }
 
+  getStats(channelId: string): { count: number; max: number; chars: number } {
+    const history = this.byChannelId.get(channelId) ?? [];
+    const chars = history.reduce((sum, turn) => sum + turn.text.length, 0);
+    return { count: history.length, max: this.maxMessages, chars };
+  }
+
   push(channelId: string, turn: ChatTurn): void {
     const history = this.byChannelId.get(channelId) ?? [];
     history.push(turn);
@@ -25,5 +31,9 @@ export class ChannelMemory {
       history.length > this.maxMessages ? history.slice(history.length - this.maxMessages) : history;
 
     this.byChannelId.set(channelId, trimmed);
+  }
+
+  clear(channelId: string): void {
+    this.byChannelId.delete(channelId);
   }
 }

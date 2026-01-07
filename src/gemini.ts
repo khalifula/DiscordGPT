@@ -2,6 +2,7 @@ import { GoogleGenAI, type Content } from '@google/genai';
 
 import { env } from './env';
 import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
+import { getResponseStyleInstruction, type ResponseStyle } from './responseStyle';
 import type { ChatTurn } from './memory';
 
 function shouldUseSearchForPrompt(userText: string): boolean {
@@ -76,7 +77,11 @@ export class GeminiClient {
     this.modelName = env.GEMINI_MODEL;
   }
 
-  async reply(opts: { history: ChatTurn[]; userText: string }): Promise<string> {
+  async reply(opts: {
+    history: ChatTurn[];
+    userText: string;
+    responseStyle?: ResponseStyle;
+  }): Promise<string> {
     const contents: Content[] = [];
     for (const turn of opts.history) {
       contents.push({ role: turn.role, parts: [{ text: turn.text }] });
@@ -90,11 +95,17 @@ export class GeminiClient {
     const isGameQuery = shouldUseSearchForPrompt(opts.userText);
     const enableSearchThisRequest = env.GEMINI_ENABLE_SEARCH && (isGameQuery || wantsSources);
 
+    const nowIso = new Date().toISOString();
+    const styleInstruction = opts.responseStyle ? getResponseStyleInstruction(opts.responseStyle) : '';
+    const systemInstruction = [SYSTEM_INSTRUCTION_DISCORD.trim(), `Date actuelle: ${nowIso}.`, styleInstruction]
+      .filter(Boolean)
+      .join('\n\n');
+
     const response = await this.ai.models.generateContent({
       model: this.modelName,
       contents,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION_DISCORD,
+        systemInstruction,
         tools: enableSearchThisRequest ? [{ googleSearch: {} }] : undefined,
       },
     });
