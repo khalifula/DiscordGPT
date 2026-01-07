@@ -32,6 +32,30 @@ const envSchema = z.object({
     },
     z.string().optional(),
   ),
+  AUTO_ACTION_EVERY_N_MESSAGES: z.preprocess(
+    (v) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string' && v.trim().length > 0) return Number(v);
+      return 10;
+    },
+    z.number().int().min(0).max(200),
+  ),
+  AUTO_ACTION_MAX_ACTIONS: z.preprocess(
+    (v) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string' && v.trim().length > 0) return Number(v);
+      return 2;
+    },
+    z.number().int().min(0).max(5),
+  ),
+  AUTO_ACTION_MAX_TIMEOUT_MINUTES: z.preprocess(
+    (v) => {
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string' && v.trim().length > 0) return Number(v);
+      return 10;
+    },
+    z.number().int().min(1).max(120),
+  ),
   MAX_TURNS: z.preprocess(
     (v) => {
       if (typeof v === 'number') return v;

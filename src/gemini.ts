@@ -2,6 +2,8 @@ import { GoogleGenAI, type Content } from '@google/genai';
 
 import { env } from './env';
 import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
+import { buildAutoActionSystemPrompt } from './autoActionPrompt';
+import { parseAutoActionPlan, type AutoActionMessage, type AutoActionPlan } from './autoActions';
 import { getResponseStyleInstruction, type ResponseStyle } from './responseStyle';
 import type { ChatTurn } from './memory';
 
@@ -128,5 +130,36 @@ export class GeminiClient {
 
     const unique = Array.from(new Set(urls)).slice(0, 5);
     return `${answer}\n\nSources:\n- ${unique.join('\n- ')}`;
+  }
+
+  async planActions(opts: {
+    channelName: string;
+    summary: string;
+    messages: AutoActionMessage[];
+    maxActions: number;
+    maxTimeoutMinutes: number;
+    summaryRequested: boolean;
+  }): Promise<AutoActionPlan> {
+    const systemInstruction = buildAutoActionSystemPrompt({
+      maxActions: opts.maxActions,
+      maxTimeoutMinutes: opts.maxTimeoutMinutes,
+    });
+
+    const payload = {
+      channel: opts.channelName,
+      now: new Date().toISOString(),
+      summaryRequested: opts.summaryRequested,
+      summary: opts.summary,
+      messages: opts.messages,
+    };
+
+    const response = await this.ai.models.generateContent({
+      model: this.modelName,
+      contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+      config: { systemInstruction },
+    });
+
+    const raw = (response.text ?? '').trim();
+    return parseAutoActionPlan(raw, opts.summary, opts.maxActions);
   }
 }

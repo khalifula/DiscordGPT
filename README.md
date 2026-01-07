@@ -8,6 +8,7 @@ Bot Discord en TypeScript qui répond via Gemini directement dans ton serveur.
 - Commandes rapides: `help/aide`, `reset/clear`, `stats`, `style <valeur>`.
 - Style de réponse configurable par salon (`style concis`, `style détaillé`, `style points`).
 - Cooldown anti-spam configurable (par défaut 4s).
+- Auto actions: l'IA maintient un résumé interne et peut agir toutes les N messages par salon.
 
 ## Prérequis
 - Node.js 18+ (recommandé 20+)
@@ -31,6 +32,9 @@ Puis complète `.env`:
 - `GEMINI_ENABLE_SEARCH` (optionnel, `false` par défaut)
 - `USER_COOLDOWN_SECONDS` (optionnel, `4` par défaut)
 - `DEFAULT_RESPONSE_STYLE` (optionnel, `normal` par défaut)
+- `AUTO_ACTION_EVERY_N_MESSAGES` (optionnel, `10` par défaut)
+- `AUTO_ACTION_MAX_ACTIONS` (optionnel, `2` par défaut)
+- `AUTO_ACTION_MAX_TIMEOUT_MINUTES` (optionnel, `10` par défaut)
 - `MAX_CONTEXT_MESSAGES` (optionnel, `50` par défaut)
 
 ### Search grounding (Google Search)
@@ -67,3 +71,8 @@ Le bot a besoin au minimum:
 - `@Bot style concis` → réponses très courtes.
 - `@Bot style détaillé` → réponses détaillées.
 - `@Bot style points` → réponses en liste à puces.
+
+## Auto actions
+- Toutes les N messages par salon, l'IA se fait un résumé interne et peut déclencher des actions.
+- Actions autorisées: réactions, message d'interaction, timeout/unmute.
+- Pour désactiver: `AUTO_ACTION_EVERY_N_MESSAGES=0`.
