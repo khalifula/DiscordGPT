@@ -61,6 +61,10 @@ function extractJsonObject(text: string): string | null {
   return text.slice(first, last + 1);
 }
 
+const EmojiChoiceSchema = z.object({
+  emoji: z.string().min(1).max(32),
+});
+
 export function parseAutoActionPlan(
   raw: string,
   fallbackSummary: string,
@@ -83,4 +87,21 @@ export function parseAutoActionPlan(
   const actions = (parsed.data.actions ?? []).slice(0, Math.max(0, maxActions));
 
   return { summary, actions };
+}
+
+export function parseEmojiChoice(raw: string): string | null {
+  const json = extractJsonObject(raw);
+  if (!json) return null;
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(json);
+  } catch {
+    return null;
+  }
+
+  const parsed = EmojiChoiceSchema.safeParse(payload);
+  if (!parsed.success) return null;
+
+  return parsed.data.emoji.trim() || null;
 }

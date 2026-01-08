@@ -342,7 +342,7 @@ async function runAutoActionCycle(opts: {
   };
   const summaryRequested = hasSummaryRequest(snapshot.messages);
 
-  let plan;
+  let plan: { summary: string; actions: AutoAction[] };
   try {
     plan = await gemini.planActions({
       channelName: getChannelName(channel, channelId),
@@ -355,7 +355,7 @@ async function runAutoActionCycle(opts: {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('Auto action plan failed:', err);
-    return;
+    plan = { summary: snapshot.summary, actions: [] };
   }
 
   if (plan.summary?.trim()) {
@@ -371,7 +371,32 @@ async function runAutoActionCycle(opts: {
     summaryRequested,
   });
 
-  for (const action of filteredActions) {
+  const actionsToApply = [...filteredActions];
+  const hasReaction = actionsToApply.some((action) => action.type === 'add_reaction');
+  if (!hasReaction) {
+    const lastMessage = snapshot.messages[snapshot.messages.length - 1];
+    if (lastMessage) {
+      try {
+        const emoji = await gemini.pickReactionEmoji({
+          channelName: getChannelName(channel, channelId),
+          summary: state.summary,
+          message: lastMessage,
+        });
+        if (emoji) {
+          actionsToApply.push({
+            type: 'add_reaction',
+            messageId: lastMessage.id,
+            emoji,
+          });
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Auto reaction pick failed:', err);
+      }
+    }
+  }
+
+  for (const action of actionsToApply) {
     try {
       await applyAutoAction({ action, channel, guild, client, maxTimeoutMinutes });
     } catch (err) {

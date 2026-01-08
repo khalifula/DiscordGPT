@@ -3,7 +3,7 @@ import { GoogleGenAI, type Content } from '@google/genai';
 import { env } from './env';
 import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
 import { buildAutoActionSystemPrompt } from './autoActionPrompt';
-import { parseAutoActionPlan, type AutoActionMessage, type AutoActionPlan } from './autoActions';
+import { parseAutoActionPlan, parseEmojiChoice, type AutoActionMessage, type AutoActionPlan } from './autoActions';
 import { getResponseStyleInstruction, type ResponseStyle } from './responseStyle';
 import type { ChatTurn } from './memory';
 
@@ -161,5 +161,35 @@ export class GeminiClient {
 
     const raw = (response.text ?? '').trim();
     return parseAutoActionPlan(raw, opts.summary, opts.maxActions);
+  }
+
+  async pickReactionEmoji(opts: {
+    channelName: string;
+    summary: string;
+    message: AutoActionMessage;
+  }): Promise<string | null> {
+    const systemInstruction = [
+      "Tu es un selecteur d'emoji de reaction Discord.",
+      'Reponds uniquement en JSON strict, sans markdown.',
+      'Schema attendu: { "emoji": "..." }',
+      "Choisis un seul emoji pertinent pour le message cible.",
+      'Pas de texte libre, pas de @here/@everyone.',
+    ].join('\n');
+
+    const payload = {
+      channel: opts.channelName,
+      now: new Date().toISOString(),
+      summary: opts.summary,
+      message: opts.message,
+    };
+
+    const response = await this.ai.models.generateContent({
+      model: this.modelName,
+      contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+      config: { systemInstruction },
+    });
+
+    const raw = (response.text ?? '').trim();
+    return parseEmojiChoice(raw);
   }
 }

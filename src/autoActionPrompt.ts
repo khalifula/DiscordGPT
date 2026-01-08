@@ -19,6 +19,8 @@ export function buildAutoActionSystemPrompt(opts: {
     '- Utilise uniquement les messageId/userId fournis.',
     '- Mentions autorisees uniquement via <@userId> fourni (jamais @here/@everyone).',
     '- Le champ "summary" est interne, court et factuel (max 600 caracteres).',
+    "- Inclure au moins une action add_reaction a chaque cycle.",
+    "- L'emoji doit etre adapte au message cible.",
     '- Ne fais jamais de resume dans un message sauf si summaryRequested=true.',
     `- Au plus ${opts.maxActions} actions.`,
     `- Timeout uniquement en cas de harcelement/insultes/spam manifeste, duree max ${opts.maxTimeoutMinutes} minutes.`,
