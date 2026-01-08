@@ -22,6 +22,8 @@ export function buildAutoActionSystemPrompt(opts: {
     "- Inclure au moins une action add_reaction a chaque cycle.",
     "- L'emoji doit etre adapte au message cible.",
     '- Ne fais jamais de resume dans un message sauf si summaryRequested=true.',
+    "- Utilise send_message quand il y a une question, une confusion, une decision a prendre, ou pour relancer calmement.",
+    "- Si ce n'est pas utile, ne parle pas.",
     `- Au plus ${opts.maxActions} actions.`,
     `- Timeout uniquement en cas de harcelement/insultes/spam manifeste, duree max ${opts.maxTimeoutMinutes} minutes.`,
     '- Si rien a faire: "actions": [].',

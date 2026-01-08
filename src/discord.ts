@@ -372,6 +372,32 @@ async function runAutoActionCycle(opts: {
   });
 
   const actionsToApply = [...filteredActions];
+  const hasSendMessage = actionsToApply.some((action) => action.type === 'send_message');
+  if (!hasSendMessage && actionsToApply.length < maxActions) {
+    try {
+      const content = await gemini.decideAutoMessage({
+        channelName: getChannelName(channel, channelId),
+        summary: state.summary,
+        messages: snapshot.messages,
+      });
+      if (content) {
+        const candidate: AutoAction = { type: 'send_message', content };
+        const validated = filterAutoActions({
+          actions: [candidate],
+          allowedMessageIds,
+          allowedUserIds,
+          summaryRequested,
+        });
+        if (validated.length > 0) {
+          actionsToApply.push(candidate);
+        }
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Auto message decision failed:', err);
+    }
+  }
+
   const hasReaction = actionsToApply.some((action) => action.type === 'add_reaction');
   if (!hasReaction) {
     const lastMessage = snapshot.messages[snapshot.messages.length - 1];

@@ -65,6 +65,12 @@ const EmojiChoiceSchema = z.object({
   emoji: z.string().min(1).max(32),
 });
 
+const AutoMessageDecisionSchema = z.object({
+  send: z.boolean(),
+  content: z.string().min(1).max(800).optional(),
+});
+
+
 export function parseAutoActionPlan(
   raw: string,
   fallbackSummary: string,
@@ -104,4 +110,22 @@ export function parseEmojiChoice(raw: string): string | null {
   if (!parsed.success) return null;
 
   return parsed.data.emoji.trim() || null;
+}
+
+export function parseAutoMessageDecision(raw: string): string | null {
+  const json = extractJsonObject(raw);
+  if (!json) return null;
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(json);
+  } catch {
+    return null;
+  }
+
+  const parsed = AutoMessageDecisionSchema.safeParse(payload);
+  if (!parsed.success) return null;
+
+  if (!parsed.data.send) return null;
+  return parsed.data.content?.trim() || null;
 }

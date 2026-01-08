@@ -3,7 +3,13 @@ import { GoogleGenAI, type Content } from '@google/genai';
 import { env } from './env';
 import { SYSTEM_INSTRUCTION_DISCORD } from './systemPrompt';
 import { buildAutoActionSystemPrompt } from './autoActionPrompt';
-import { parseAutoActionPlan, parseEmojiChoice, type AutoActionMessage, type AutoActionPlan } from './autoActions';
+import {
+  parseAutoActionPlan,
+  parseAutoMessageDecision,
+  parseEmojiChoice,
+  type AutoActionMessage,
+  type AutoActionPlan,
+} from './autoActions';
 import { getResponseStyleInstruction, type ResponseStyle } from './responseStyle';
 import type { ChatTurn } from './memory';
 
@@ -192,4 +198,36 @@ export class GeminiClient {
     const raw = (response.text ?? '').trim();
     return parseEmojiChoice(raw);
   }
+
+  async decideAutoMessage(opts: {
+    channelName: string;
+    summary: string;
+    messages: AutoActionMessage[];
+  }): Promise<string | null> {
+    const systemInstruction = [
+      "Tu decides si le bot doit envoyer un message dans le salon.",
+      'Reponds uniquement en JSON strict, sans markdown.',
+      'Schema attendu: { "send": true|false, "content": "..." }',
+      "Si send=false, ne fournis pas de content.",
+      "Message court (1-2 phrases), utile, pas de resume.",
+      "Pas de @here/@everyone.",
+    ].join('\n');
+
+    const payload = {
+      channel: opts.channelName,
+      now: new Date().toISOString(),
+      summary: opts.summary,
+      messages: opts.messages,
+    };
+
+    const response = await this.ai.models.generateContent({
+      model: this.modelName,
+      contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+      config: { systemInstruction },
+    });
+
+    const raw = (response.text ?? '').trim();
+    return parseAutoMessageDecision(raw);
+  }
+
 }
